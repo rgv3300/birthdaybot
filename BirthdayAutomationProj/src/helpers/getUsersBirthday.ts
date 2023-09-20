@@ -1,6 +1,6 @@
 import { InvocationContext } from "@azure/functions";
 
-interface AdUser {
+export interface AdUser {
     birthday: string;
     email: string;
 }
@@ -13,7 +13,6 @@ export async function getAdUsersAndBirthdays(context: InvocationContext): Promis
     if (!AD_ACCESS_TOKEN) {
         throw Error('AD access token not set in the environment.');
     }
-    // queries received by api    
 
     try {
         const options = {
@@ -23,8 +22,9 @@ export async function getAdUsersAndBirthdays(context: InvocationContext): Promis
                 'consistencyLevel': 'eventual'
             }
         };
-        const url = `https://graph.microsoft.com/v1.0/users?$select=mail,userprincipalname,onPremisesExtensionAttributes&$count=true`
-        context.log(`Making graph api request to ${url}...`)
+        const url = `https://graph.microsoft.com/v1.0/users?$select=mail,userprincipalname,onPremisesExtensionAttributes&$count=true`;
+        context.log(`Making graph api request to ${url}...`);
+    
         const adResponse = await fetch(url, options);
         let adJson = await adResponse.json();
         let hasPaginatedResponse = false;
@@ -34,19 +34,29 @@ export async function getAdUsersAndBirthdays(context: InvocationContext): Promis
         }
 
         if ("value" in adJson) {
-            adUserList.push(...adJson.value);
+            for (const adEntry of adJson.value) {
+                const adUser: AdUser = {birthday: adEntry['onPremisesExtensionAttributes']['extensionAttribute2'],
+                                        email: adEntry['userPrincipalName']
+                                    };
+                adUserList.push(adUser);
+            }
         } 
 
         if ("@odata.nextLink" in adJson) {
             hasPaginatedResponse = true;
             while (hasPaginatedResponse) {
                 const nextLink = adJson["@odata.nextLink"];
-                context.log(`Making graph api request to ${nextLink}...`)
+                context.log(`Making graph api request to ${nextLink}...`);
                 const adNextResponse = await fetch(nextLink, options);
                 const adNextJson = await adNextResponse.json();
                 
                 if ("value" in adNextJson) {
-                    adUserList.push(...adJson.value) ;
+                    for (const adEntry of adJson.value) {
+                        const adUser: AdUser = {birthday: adEntry['onPremisesExtensionAttributes']['extensionAttribute2'],
+                                                email: adEntry['userPrincipalName']
+                                            };
+                        adUserList.push(adUser);
+                    }
                 }
 
                 if (!("@odata.nextLink" in adNextJson)) {
